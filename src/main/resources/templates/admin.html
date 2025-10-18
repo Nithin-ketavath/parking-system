@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Admin Console</title>
+    <link rel="stylesheet" th:href="@{/css/custom.css}" />
+    <style>
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+
+        .container {
+            display: flex;
+            gap: 24px;
+            padding: 20px;
+        }
+
+        .left {
+            flex: 1 1 70%;
+        }
+
+        .right {
+            flex: 0 0 320px;
+        }
+
+        h1 {
+            margin: 10px 20px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            background: white;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+
+        thead th {
+            background: #0b3d91;
+            color: white;
+            padding: 10px;
+            text-align: left;
+        }
+
+        tbody td {
+            padding: 10px;
+            border-bottom: 1px solid #eee;
+        }
+
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+
+        .actions button {
+            margin-right: 6px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            cursor: pointer;
+        }
+
+        .btn-block {
+            background: #ffc107;
+        }
+
+        .btn-delete {
+            background: #dc3545;
+            color: white;
+            border-color: #c82333;
+        }
+
+        .card {
+            background: #fff;
+            padding: 16px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+        }
+
+        .form-row {
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+        }
+
+        .form-row label {
+            width: 100px;
+            font-weight: 600;
+        }
+
+        .form-row input {
+            flex: 1;
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        .right .button-row {
+            display: flex;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        /* Button utility styles */
+        .btn {
+            padding: 8px 12px;
+            border-radius: 6px;
+            border: 1px solid transparent;
+            cursor: pointer;
+            font-weight: 600;
+        }
+
+        .btn-primary {
+            background: #0b3d91;
+            color: white;
+            border-color: #08306e;
+        }
+
+        .btn-primary:hover {
+            filter: brightness(0.95);
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Admin Console</h1>
+    <div class="container">
+        <div class="left">
+            <div class="card">
+                <h2>Users</h2>
+                <table id="usersTable" aria-describedby="usersTable">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>USERNAME</th>
+                            <th>EMAIL</th>
+                            <th>ROLE</th>
+                            <th>BLOCKED</th>
+                            <th>ACTIONS</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+
+        <div class="right">
+            <div class="card">
+                <h2>Pricing</h2>
+                <form id="pricingForm">
+                    <div class="form-row"><label for="car">CAR:</label><input id="car" name="CAR" value="50" /></div>
+                    <div class="form-row"><label for="bike">BIKE:</label><input id="bike" name="BIKE" value="25" />
+                    </div>
+                    <div class="form-row"><label for="truck">TRUCK:</label><input id="truck" name="TRUCK" value="100" />
+                    </div>
+                    <div class="button-row">
+                        <button type="submit" class="btn btn-primary">Save Rates</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentAdmin = { username: null, role: null };
+
+        async function fetchCurrentAdmin() {
+            try {
+                const r = await fetch('/api/admin/me', { credentials: 'include' });
+                if (r.ok) currentAdmin = await r.json();
+            } catch (e) { console.warn('could not get current admin', e); }
+        }
+
+        async function fetchUsers() {
+            const resp = await fetch('/api/admin/users', { credentials: 'include' });
+            if (!resp.ok) { console.error('failed to fetch users', resp.status); return; }
+            const users = await resp.json();
+            const tbody = document.querySelector('#usersTable tbody');
+            tbody.innerHTML = '';
+            users.forEach(u => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${u.userId}</td><td>${escapeHtml(u.username)}</td><td>${escapeHtml(u.email)}</td><td>${u.role}</td><td>${u.blocked}</td>`;
+                const actions = document.createElement('td');
+                actions.className = 'actions';
+                const blockBtn = document.createElement('button');
+                blockBtn.className = 'btn-block';
+                blockBtn.textContent = u.blocked ? 'Unblock' : 'Block';
+                if (u.role === 'ADMIN' || (currentAdmin.username && currentAdmin.username === u.username)) {
+                    blockBtn.disabled = true;
+                    blockBtn.title = 'Cannot block admins or self';
+                } else {
+                    blockBtn.onclick = async () => {
+                        blockBtn.disabled = true;
+                        await fetch(`/api/admin/users/${u.userId}/block?block=${!u.blocked}`, { method: 'POST', credentials: 'include' });
+                        await fetchUsers();
+                    };
+                }
+                const delBtn = document.createElement('button');
+                delBtn.className = 'btn-delete';
+                delBtn.textContent = 'Delete';
+                if (u.role === 'ADMIN' || (currentAdmin.username && currentAdmin.username === u.username)) {
+                    delBtn.disabled = true;
+                    delBtn.title = 'Cannot delete admins or self';
+                } else {
+                    delBtn.onclick = async () => {
+                        if (!confirm('Delete user ' + u.username + '?')) return;
+                        delBtn.disabled = true;
+                        await fetch(`/api/admin/users/${u.userId}`, { method: 'DELETE', credentials: 'include' });
+                        await fetchUsers();
+                    };
+                }
+                actions.appendChild(blockBtn);
+                actions.appendChild(document.createTextNode(' '));
+                actions.appendChild(delBtn);
+                tr.appendChild(actions);
+                tbody.appendChild(tr);
+            });
+        }
+
+        function escapeHtml(s) {
+            if (!s) return '';
+            return s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+        }
+
+        async function loadPricing() {
+            const resp = await fetch('/api/admin/pricing', { credentials: 'include' });
+            if (!resp.ok) return;
+            const list = await resp.json();
+            const map = {};
+            list.forEach(p => { map[p.vehicleType] = p.hourlyRate; });
+            if (map.CAR) document.getElementById('car').value = map.CAR;
+            if (map.BIKE) document.getElementById('bike').value = map.BIKE;
+            if (map.TRUCK) document.getElementById('truck').value = map.TRUCK;
+        }
+
+        document.getElementById('pricingForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const data = {
+                CAR: parseFloat(form.CAR.value),
+                BIKE: parseFloat(form.BIKE.value),
+                TRUCK: parseFloat(form.TRUCK.value)
+            };
+            const resp = await fetch('/api/admin/pricing', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(data)
+            });
+            if (resp.ok) {
+                alert('Pricing saved');
+                await loadPricing();
+            } else {
+                alert('Failed to save pricing');
+            }
+        });
+
+        (async () => {
+            await fetchCurrentAdmin();
+            await fetchUsers();
+            await loadPricing();
+        })();
+    </script>
+</body>
+
+</html>

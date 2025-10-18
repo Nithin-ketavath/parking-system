@@ -1,0 +1,505 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Checkout - Parking Management</title>
+    <link rel="stylesheet" href="/css/custom.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="sidebar">
+        <h2>Parking System</h2>
+        <a href="/">🏠 Dashboard</a>
+        <a href="/booking">🚗 Book a Slot</a>
+        <a href="/checkout" class="active">🕒 Checkout</a>
+        <a href="/profile">👤 Profile</a>
+    </div>
+
+    <div class="main-content">
+        <div class="topbar">
+            <span class="username">Welcome, <span th:text="${username}">Guest</span></span>
+            <span th:if="${role} == 'ADMIN'" style="margin-left:20px;color:#007bff;font-weight:bold;">(Admin)</span>
+        </div>
+
+        <h1>Checkout</h1>
+
+        <!-- Search Form -->
+        <div class="form-container">
+            <div class="form-group">
+                <label for="searchType">Search By</label>
+                <select id="searchType" onchange="toggleSearchInput()">
+                    <option value="bookingId">Booking ID</option>
+                    <option value="vehicleNumber">Vehicle Number</option>
+                    <option value="userId">User ID</option>
+                </select>
+            </div>
+            <div class="form-group">
+                <label for="searchValue">Search Value</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="searchValue" placeholder="Enter search value" style="flex: 1;">
+                    <button class="btn" onclick="searchBookings()">
+                        <i class="fas fa-search"></i> Search
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Active Bookings -->
+        <div class="card">
+            <h2>Active Bookings</h2>
+            <div id="bookingsContainer" class="booking-cards">
+                <div class="text-center">
+                    <div class="loading"></div>
+                    <p class="mt-2">Loading active bookings...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Selected Booking Info -->
+        <div id="selectedBookingInfo" class="card" style="display: none;">
+            <h2>Selected Booking Information</h2>
+            <div id="bookingDetails"></div>
+        </div>
+
+        <!-- Check Out Form -->
+        <div id="checkoutForm" class="form-container" style="display: none;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                <div class="cost-display">
+                    <h4>Total Cost</h4>
+                    <h2 id="totalCost">₹0</h2>
+                    <p id="durationInfo">Duration: 0 hours</p>
+                </div>
+                <div>
+                    <div class="form-group">
+                        <label for="paymentMethod">Payment Method</label>
+                        <select id="paymentMethod">
+                            <option value="CASH">💵 Cash</option>
+                            <option value="CARD">💳 Card</option>
+                            <option value="UPI">📱 UPI</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+            <div style="text-align: right; margin-top: 20px;">
+                <button type="button" class="btn btn-warning" onclick="clearSelection()">
+                    <i class="fas fa-times"></i> Clear Selection
+                </button>
+                <button type="button" class="btn btn-success" id="checkoutBtn" onclick="processCheckout()" disabled>
+                    <i class="fas fa-check"></i> Process Checkout
+                </button>
+            </div>
+        </div>
+
+        <!-- Success Modal -->
+        <div id="successModal" class="modal"
+            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+            <div
+                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
+                <h3 style="color: #28a745; margin-bottom: 20px;">
+                    <i class="fas fa-check-circle"></i> Checkout Successful
+                </h3>
+                <div id="checkoutDetails"></div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button class="btn" onclick="closeModal()">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedBooking = null;
+        let activeBookings = [];
+
+        // Auth token helper (reuse same localStorage key used in index)
+        function getAuthToken() {
+            return localStorage.getItem('authToken');
+        }
+
+        // Load active bookings on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            // Prefer user-specific active bookings if logged in
+            const token = getAuthToken();
+            const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+            fetch('/api/bookings/my/active', { headers })
+                .then(r => r.ok ? r.json() : Promise.reject())
+                .then(list => { activeBookings = list; displayBookings(list); })
+                .catch(() => loadActiveBookings());
+        });
+
+        function loadActiveBookings() {
+            const token = getAuthToken();
+            const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+            fetch('/api/bookings/active', { headers })
+                .then(response => response.json())
+                .then(bookings => {
+                    activeBookings = bookings;
+                    displayBookings(bookings);
+                })
+                .catch(error => {
+                    console.error('Error loading bookings:', error);
+                    document.getElementById('bookingsContainer').innerHTML =
+                        '<div class="text-center"><p class="error">Error loading bookings. Please try again.</p></div>';
+                });
+        }
+
+        function displayBookings(bookings) {
+            const container = document.getElementById('bookingsContainer');
+
+            if (bookings.length === 0) {
+                container.innerHTML = '<div class="text-center"><p class="text-muted">No active bookings found.</p></div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            bookings.forEach(booking => {
+                const checkInTime = new Date(booking.checkInTime).toLocaleString();
+                const duration = calculateDuration(booking.checkInTime);
+                const estimatedCost = calculateCost(booking.checkInTime, new Date(), booking.slot ? booking.slot.hourlyRate : 50);
+
+                const bookingCard = document.createElement('div');
+                bookingCard.className = 'booking-card';
+                bookingCard.onclick = () => selectBooking(bookingCard, booking.bookingId);
+                bookingCard.innerHTML = `
+                <div class="booking-header">
+                    Booking #${booking.bookingId}
+                </div>
+                <div class="booking-body">
+                    <div class="booking-details">
+                        <div class="detail-item">
+                            <div class="detail-label">Slot</div>
+                            <div class="detail-value">${booking.slot ? booking.slot.slotNumber : 'N/A'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Vehicle</div>
+                            <div class="detail-value">${booking.vehicle ? booking.vehicle.vehicleNumber : 'N/A'}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Check-in</div>
+                            <div class="detail-value">${checkInTime}</div>
+                        </div>
+                        <div class="detail-item">
+                            <div class="detail-label">Duration</div>
+                            <div class="detail-value">${duration}</div>
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin-top: 10px;">
+                        <span class="status-badge status-checked-in">${booking.status}</span>
+                        <div style="margin-top: 10px; font-weight: bold; color: #28a745;">
+                            Est. Cost: ₹${estimatedCost}
+                        </div>
+                    </div>
+                </div>
+            `;
+                container.appendChild(bookingCard);
+            });
+        }
+
+        function selectBooking(element, bookingId) {
+            // Remove previous selection
+            document.querySelectorAll('.booking-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Add selection to clicked card
+            if (element) {
+                element.classList.add('selected');
+            }
+
+            // Find selected booking
+            selectedBooking = activeBookings.find(booking => booking.bookingId === bookingId);
+
+            // Show booking details
+            document.getElementById('selectedBookingInfo').style.display = 'block';
+            document.getElementById('bookingDetails').innerHTML = `
+            <div class="booking-details">
+                <div class="detail-item">
+                    <div class="detail-label">Booking ID</div>
+                    <div class="detail-value">${selectedBooking.bookingId}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Slot</div>
+                    <div class="detail-value">${selectedBooking.slot ? selectedBooking.slot.slotNumber + ' (' + selectedBooking.slot.location + ')' : 'N/A'}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Vehicle</div>
+                    <div class="detail-value">${selectedBooking.vehicle ? selectedBooking.vehicle.vehicleNumber : 'N/A'}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Check-in Time</div>
+                    <div class="detail-value">${new Date(selectedBooking.checkInTime).toLocaleString()}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Current Status</div>
+                    <div class="detail-value">${selectedBooking.status}</div>
+                </div>
+            </div>
+        `;
+
+            // Show checkout form and calculate cost
+            document.getElementById('checkoutForm').style.display = 'block';
+            calculateAndDisplayCost();
+
+            // Enable checkout button
+            document.getElementById('checkoutBtn').disabled = false;
+        }
+
+        function calculateAndDisplayCost() {
+            if (!selectedBooking) return;
+
+            const checkInTime = new Date(selectedBooking.checkInTime);
+            const checkOutTime = new Date();
+            const cost = calculateCost(selectedBooking.checkInTime, checkOutTime, selectedBooking.slot ? selectedBooking.slot.hourlyRate : 50);
+            const duration = calculateDuration(selectedBooking.checkInTime);
+
+            document.getElementById('totalCost').textContent = `₹${cost}`;
+            document.getElementById('durationInfo').textContent = `Duration: ${duration}`;
+        }
+
+        function calculateCost(checkInTime, checkOutTime, hourlyRate) {
+            const start = new Date(checkInTime);
+            const end = new Date(checkOutTime);
+            const diffMs = end - start;
+            const diffHours = Math.ceil(diffMs / (1000 * 60 * 60));
+            return Math.max(1, diffHours) * hourlyRate;
+        }
+
+        function calculateDuration(checkInTime) {
+            const start = new Date(checkInTime);
+            const end = new Date();
+            const diffMs = end - start;
+            const hours = Math.floor(diffMs / (1000 * 60 * 60));
+            const minutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            return `${hours}h ${minutes}m`;
+        }
+
+        function clearSelection() {
+            selectedBooking = null;
+            document.querySelectorAll('.booking-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.getElementById('selectedBookingInfo').style.display = 'none';
+            document.getElementById('checkoutForm').style.display = 'none';
+            document.getElementById('checkoutBtn').disabled = true;
+        }
+
+        function processCheckout() {
+            if (!selectedBooking) {
+                alert('Please select a booking to checkout.');
+                return;
+            }
+
+            const paymentMethod = document.getElementById('paymentMethod').value;
+
+            fetch(`/api/bookings/checkout/${selectedBooking.bookingId}?paymentMethod=${encodeURIComponent(paymentMethod)}`, {
+                method: 'POST',
+                headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthToken() ? { 'Authorization': 'Bearer ' + getAuthToken() } : {})
+            })
+                .then(response => response.text().then(text => {
+                    console.log('Checkout response status:', response.status);
+
+                    if (response.status === 401) {
+                        window.location.href = '/login';
+                        return Promise.reject('Unauthorized');
+                    }
+
+                    if (!response.ok) {
+                        // response body may be HTML/stacktrace; include a snippet
+                        const snippet = text ? text.substring(0, 1000) : 'No response body';
+                        console.error('Checkout error (server returned non-OK):', response.status, snippet);
+                        throw new Error(`HTTP ${response.status}: ${snippet}`);
+                    }
+
+                    const ct = response.headers.get('content-type') || '';
+                    if (!ct.includes('application/json')) {
+                        throw new Error('Expected JSON response but received: ' + (text ? text.substring(0, 1000) : ''));
+                    }
+
+                    return JSON.parse(text);
+                }))
+                .then(booking => {
+                    console.log('Checkout successful:', booking);
+
+                    // Show success modal
+                    const totalCost = booking.totalCost;
+                    const checkOutTime = new Date(booking.checkOutTime).toLocaleString();
+
+                    document.getElementById('checkoutDetails').innerHTML = `
+                <p><strong>Booking ID:</strong> ${booking.bookingId}</p>
+                <p><strong>Slot:</strong> ${booking.slot ? booking.slot.slotNumber : 'N/A'}</p>
+                <p><strong>Vehicle:</strong> ${booking.vehicle ? booking.vehicle.vehicleNumber : 'N/A'}</p>
+                <p><strong>Check-out Time:</strong> ${checkOutTime}</p>
+                <p><strong>Total Cost:</strong> ₹${totalCost}</p>
+                <p><strong>Payment Method:</strong> ${paymentMethod}</p>
+                <p><strong>Status:</strong> ${booking.status}</p>
+            `;
+
+                    showModal();
+
+                    // Show success notification
+                    const successDiv = document.createElement('div');
+                    successDiv.className = 'alert alert-success';
+                    successDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px; padding: 15px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; border-radius: 5px;';
+                    successDiv.innerHTML = `
+                <strong>Checkout Successful!</strong><br>
+                Booking #${booking.bookingId} has been checked out successfully.
+                <button onclick="this.parentElement.remove()" style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">&times;</button>
+            `;
+
+                    document.body.appendChild(successDiv);
+
+                    // Auto-remove after 3 seconds
+                    setTimeout(() => {
+                        if (successDiv.parentElement) {
+                            successDiv.remove();
+                        }
+                    }, 3000);
+
+                    // Clear selection and reload
+                    clearSelection();
+                    loadActiveBookings();
+                })
+                .catch(error => {
+                    console.error('Error processing checkout:', error);
+
+                    // Show detailed error message
+                    let errorMessage = 'Error processing checkout. Please try again.';
+                    if (error.message) {
+                        errorMessage = error.message;
+                    }
+
+                    // Create a more user-friendly error display
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'alert alert-danger';
+                    errorDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px; padding: 15px; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 5px;';
+                    errorDiv.innerHTML = `
+                <strong>Checkout Failed!</strong><br>
+                ${errorMessage}
+                <button onclick="this.parentElement.remove()" style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">&times;</button>
+            `;
+
+                    document.body.appendChild(errorDiv);
+
+                    // Auto-remove after 5 seconds
+                    setTimeout(() => {
+                        if (errorDiv.parentElement) {
+                            errorDiv.remove();
+                        }
+                    }, 5000);
+                });
+        }
+
+        function searchBookings() {
+            const searchType = document.getElementById('searchType').value;
+            const searchValue = document.getElementById('searchValue').value;
+
+            if (!searchValue.trim()) {
+                loadActiveBookings();
+                return;
+            }
+
+            // Filter bookings based on search criteria
+            let filteredBookings = activeBookings.filter(booking => {
+                switch (searchType) {
+                    case 'bookingId':
+                        return booking.bookingId.toString().includes(searchValue);
+                    case 'vehicleNumber':
+                        return (booking.vehicle && booking.vehicle.vehicleNumber)
+                            ? booking.vehicle.vehicleNumber.toLowerCase().includes(searchValue.toLowerCase())
+                            : false;
+                    case 'userId':
+                        return (booking.user && booking.user.userId)
+                            ? booking.user.userId.toString().includes(searchValue)
+                            : false;
+                    default:
+                        return true;
+                }
+            });
+
+            displayBookings(filteredBookings);
+        }
+
+        // Direct search by slot using backend endpoint with robust error handling
+        function searchBookingBySlot(slotId) {
+            const info = document.getElementById('booking-info');
+            const token = getAuthToken();
+            const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+            fetch(`/api/checkout/search?slotId=${encodeURIComponent(slotId)}`, { headers })
+                .then(res => {
+                    if (!res.ok) {
+                        return res.text().then(text => { throw new Error(text); });
+                    }
+                    return res.json();
+                })
+                .then(data => {
+                    info.innerHTML = `Booking found for Slot ${data.slot?.slotId || data.slot?.id || ''}, Vehicle: ${data.vehicle?.vehicleNumber || data.vehicle?.licensePlate || ''}`;
+                })
+                .catch(err => {
+                    info.innerHTML = 'Error loading bookings: ' + err.message;
+                });
+        }
+
+        function toggleSearchInput() {
+            const searchType = document.getElementById('searchType').value;
+            const searchValue = document.getElementById('searchValue');
+
+            switch (searchType) {
+                case 'bookingId':
+                case 'userId':
+                    searchValue.type = 'number';
+                    searchValue.placeholder = 'Enter ID number';
+                    break;
+                case 'vehicleNumber':
+                    searchValue.type = 'text';
+                    searchValue.placeholder = 'Enter vehicle number';
+                    break;
+            }
+        }
+
+        function showModal() {
+            document.getElementById('successModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('successModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+            const modal = document.getElementById('successModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Update cost every minute
+        setInterval(() => {
+            if (selectedBooking) {
+                calculateAndDisplayCost();
+            }
+        }, 60000);
+
+        // Debug function to help troubleshoot
+        function debugCheckout() {
+            console.log('=== CHECKOUT DEBUG INFO ===');
+            console.log('Selected booking:', selectedBooking);
+            console.log('Active bookings:', activeBookings);
+            console.log('Payment method:', document.getElementById('paymentMethod').value);
+
+            if (selectedBooking) {
+                console.log('Selected booking status:', selectedBooking.status);
+                console.log('Selected booking check-in time:', selectedBooking.checkInTime);
+                console.log('Selected booking slot:', selectedBooking.slot);
+                console.log('Selected booking vehicle:', selectedBooking.vehicle);
+            }
+            console.log('========================');
+        }
+
+        // Make debug function available globally
+        window.debugCheckout = debugCheckout;
+    </script>
+</body>
+
+</html>

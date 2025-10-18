@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Parking Management</title>
+    <link rel="stylesheet" href="/css/custom.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="sidebar">
+        <h2>Parking System</h2>
+        <a href="/">🏠 Dashboard</a>
+        <a href="/booking">🚗 Book a Slot</a>
+        <a href="/checkout">🕒 Checkout</a>
+        <a href="/profile" class="active">👤 Profile</a>
+    </div>
+
+    <div class="main-content">
+        <div class="topbar" style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="username">Welcome, <span th:text="${user?.username ?: 'Guest'}">Guest</span></span>
+            <button id="logoutBtn" class="btn"
+                style="background: linear-gradient(135deg, #002B5B 0%, #1A5276 100%); color: white; border: none; padding: 10px 22px; border-radius: 8px; font-size: 1rem; font-weight: 600; cursor: pointer; box-shadow: 0 4px 12px rgba(0,43,91,0.12);">
+                <i class="fas fa-sign-out-alt"></i> Log Out
+            </button>
+        </div>
+
+        <div class="profile-card"
+            style="max-width: 500px; margin: 40px auto; border-radius: 20px; box-shadow: 0 15px 35px rgba(0,0,0,0.12); background: white; overflow: hidden;">
+            <div class="profile-header"
+                style="background: linear-gradient(135deg, #002B5B 0%, #1A5276 100%); color: white; padding: 40px 30px; text-align: center;">
+                <div class="profile-avatar" style="margin-bottom: 18px;">
+                    <i class="fas fa-user" style="font-size: 3.5rem;"></i>
+                </div>
+                <h3 th:text="${user?.fullName ?: 'User Profile'}" style="margin:0; font-size:2rem; font-weight:700;">
+                    User Profile</h3>
+                <p th:text="${user?.role ?: 'USER'}" style="margin:10px 0 0 0; opacity:0.9; font-size:1rem;">USER</p>
+            </div>
+            <div class="profile-body" th:if="${user}" style="padding: 35px 30px;">
+                <div class="profile-info" style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+                    <div class="info-item"><i class="fas fa-id-badge"></i> <span>User ID:</span> <span
+                            th:text="${user.userId}">1</span></div>
+                    <div class="info-item"><i class="fas fa-user"></i> <span>Full Name:</span> <span
+                            th:text="${user.fullName}">John Doe</span></div>
+                    <div class="info-item"><i class="fas fa-at"></i> <span>Username:</span> <span
+                            th:text="${user.username}">john</span></div>
+                    <div class="info-item"><i class="fas fa-envelope"></i> <span>Email:</span> <span
+                            th:text="${user.email}">john@example.com</span></div>
+                    <div class="info-item"><i class="fas fa-phone"></i> <span>Phone:</span> <span
+                            th:text="${user.phoneNumber}">9999999999</span></div>
+                    <div class="info-item"><i class="fas fa-shield-alt"></i> <span>Role:</span> <span
+                            th:text="${user.role}">USER</span></div>
+                    <div class="info-item"><i class="fas fa-calendar"></i> <span>Member Since:</span> <span>2024</span>
+                    </div>
+                </div>
+            </div>
+            <div th:if="${user} == null" class="text-center py-5">
+                <i class="fas fa-exclamation-triangle fa-3x" style="color: #ffc107; margin-bottom: 20px;"></i>
+                <p class="text-muted">No user information available.</p>
+            </div>
+        </div>
+
+        <div class="card"
+            style="max-width: 500px; margin: 30px auto 0 auto; border-radius: 16px; box-shadow: 0 8px 24px rgba(0,43,91,0.10); background: white;">
+            <h2 style="padding: 20px 30px 0 30px; font-size: 1.3rem; font-weight: 700; color: #002B5B;">Your Recent
+                Bookings</h2>
+            <ul id="recent-bookings" class="list" style="margin:0; padding: 18px 30px 30px 30px;">
+                <li class="text-muted">Loading your bookings...</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        function getAuthToken() {
+            return localStorage.getItem('authToken');
+        }
+        function loadRecentBookings() {
+            const token = getAuthToken();
+            const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+            fetch('/api/bookings/recent', { headers })
+                .then(res => {
+                    if (!res.ok) throw new Error('HTTP ' + res.status);
+                    return res.json();
+                })
+                .then(data => {
+                    const list = document.getElementById('recent-bookings');
+                    list.innerHTML = '';
+                    if (!Array.isArray(data) || data.length === 0) {
+                        list.innerHTML = '<li class="text-muted">No recent bookings.</li>';
+                        return;
+                    }
+                    data.forEach(b => {
+                        const li = document.createElement('li');
+                        const when = b.bookingTime ? new Date(b.bookingTime).toLocaleString() : 'N/A';
+                        const slot = b.slot && (b.slot.slotNumber || b.slot.slotId) ? (b.slot.slotNumber || ('#' + b.slot.slotId)) : 'N/A';
+                        li.textContent = `Slot: ${slot}, Time: ${when}`;
+                        list.appendChild(li);
+                    });
+                })
+                .catch(err => {
+                    document.getElementById('recent-bookings').innerHTML = '<li class="error">Error loading bookings. Please try again.</li>';
+                });
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            loadRecentBookings();
+            document.getElementById('logoutBtn').addEventListener('click', function () {
+                localStorage.removeItem('authToken');
+                window.location.href = '/login';
+            });
+        });
+    </script>
+</body>
+
+</html>

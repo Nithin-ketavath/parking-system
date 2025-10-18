@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Parking Management</title>
+    <link rel="stylesheet" href="/css/custom.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="sidebar">
+        <h2>Parking System</h2>
+        <a href="/" class="active">🏠 Dashboard</a>
+        <a href="/booking">🚗 Book a Slot</a>
+        <a href="/checkout">🕒 Checkout</a>
+        <a href="/profile">👤 Profile</a>
+    </div>
+
+    <div class="main-content">
+        <div class="topbar">
+            <span class="username">Welcome, <span th:text="${username}">Guest</span></span>
+            <span th:if="${role} == 'ADMIN'" style="margin-left:20px;color:#007bff;font-weight:bold;">(Admin)</span>
+        </div>
+
+        <h1 th:if="${role} == 'ADMIN'">Admin Dashboard</h1>
+        <h1 th:if="${role} != 'ADMIN'">Dashboard</h1>
+
+        <div class="card">
+            <h2>🚘 Available Slots</h2>
+            <p id="availableSlotsCount">Loading...</p>
+            <div th:if="${role} == 'ADMIN'" style="margin-top:10px;">
+                <a href="/admin/manage-slots" class="btn btn-primary">Manage Slots</a>
+                <a href="/admin/bookings" class="btn btn-secondary" style="margin-left:10px;">View All Bookings</a>
+            </div>
+        </div>
+
+        <h2>Your Bookings</h2>
+        <div id="bookingsContainer">
+            <div class="text-center">
+                <div class="loading"></div>
+                <p class="mt-2">Loading your bookings...</p>
+            </div>
+        </div>
+
+        <!-- Available Slots Grid -->
+        <div class="card">
+            <h2>📍 Available Parking Slots</h2>
+            <div id="slotsGrid" class="slots-grid">
+                <!-- Slots will be loaded here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Auth token management
+        function setAuthToken(token) {
+            localStorage.setItem('authToken', token);
+        }
+        function getAuthToken() {
+            return localStorage.getItem('authToken');
+        }
+        function removeAuthToken() {
+            localStorage.removeItem('authToken');
+        }
+
+        // Example: Set token after login (replace with actual login logic)
+        // setAuthToken('your-token-here');
+
+        // Remove token on logout
+        function logout() {
+            removeAuthToken();
+            window.location.href = '/signout';
+        }
+
+        // Optionally, check token on page load to keep user logged in
+        document.addEventListener('DOMContentLoaded', function () {
+            const token = getAuthToken();
+            if (token) {
+                // Optionally, use token to fetch user info or keep session
+                // e.g., fetch('/api/user/me', { headers: { Authorization: 'Bearer ' + token } })
+            }
+        });
+        // Load available slots count
+        function loadAvailableSlotsCount() {
+            const token = getAuthToken();
+            const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+            fetch('/api/slots/stats', { headers })
+                .then(response => response.json())
+                .then(stats => {
+                    document.getElementById('availableSlotsCount').textContent = stats.available + ' out of ' + stats.total + ' slots available';
+                })
+                .catch(error => {
+                    console.error('Error loading slot stats:', error);
+                    document.getElementById('availableSlotsCount').textContent = 'Error loading data';
+                });
+        }
+
+        // Load available slots grid
+        function loadAvailableSlots() {
+            const token = getAuthToken();
+            const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+            fetch('/api/slots/available', { headers })
+                .then(response => response.json())
+                .then(slots => {
+                    const slotsGrid = document.getElementById('slotsGrid');
+                    slotsGrid.innerHTML = '';
+
+                    if (slots.length === 0) {
+                        slotsGrid.innerHTML = '<div class="col-12 text-center"><p class="text-muted">No available slots at the moment.</p></div>';
+                    } else {
+                        slots.forEach(slot => {
+                            const slotCard = document.createElement('div');
+                            slotCard.className = 'slot-card slot-available';
+                            slotCard.innerHTML = `
+                            <div class="slot-number">${slot.slotNumber}</div>
+                            <div class="slot-status">Available</div>
+                        `;
+                            slotCard.onclick = () => {
+                                window.location.href = `/booking?slotId=${slot.slotId}`;
+                            };
+                            slotsGrid.appendChild(slotCard);
+                        });
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading slots:', error);
+                    document.getElementById('slotsGrid').innerHTML = '<div class="col-12 text-center"><p class="error">Error loading slots</p></div>';
+                });
+        }
+
+        // Load user bookings (robust: prefer user-specific endpoint then fall back to global active bookings)
+        function loadUserBookings() {
+            const token = getAuthToken();
+            const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
+            fetch('/api/bookings/my/active', { headers })
+                .then(response => {
+                    const ct = (response.headers.get('content-type') || '').toLowerCase();
+                    // If the response is not OK or not JSON (e.g. login HTML), fall back to public endpoint
+                    if (!response.ok || !ct.includes('application/json')) {
+                        return fetch('/api/bookings/active', { headers })
+                            .then(pubRes => {
+                                if (!pubRes.ok) throw new Error('Failed to load bookings from public endpoint');
+                                const pubCt = (pubRes.headers.get('content-type') || '').toLowerCase();
+                                if (!pubCt.includes('application/json')) {
+                                    return pubRes.text().then(t => { throw new Error('Public bookings endpoint did not return JSON: ' + t.substring(0, 200)); });
+                                }
+                                return pubRes.json();
+                            });
+                    }
+                    return response.json();
+                })
+                .then(bookings => {
+                    const container = document.getElementById('bookingsContainer');
+                    if (!bookings || bookings.length === 0) {
+                        container.innerHTML = '<p class="text-center text-muted">No active bookings found.</p>';
+                        return;
+                    }
+                    let tableHTML = `
+                    <div class="text-muted" style="margin-bottom:10px;">Tip: Use the Booking ID below for checkout.</div>
+                    <table>
+                        <tr>
+                            <th>Booking ID</th>
+                            <th>Slot</th>
+                            <th>Vehicle</th>
+                            <th>Status</th>
+                            <th>Action</th>
+                        </tr>
+                `;
+                    bookings.forEach(booking => {
+                        const checkInTime = new Date(booking.checkInTime).toLocaleString();
+                        const statusClass = booking.status ? booking.status.toLowerCase().replace('_', '-') : '';
+                        tableHTML += `
+                        <tr>
+                            <td>${booking.bookingId}</td>
+                            <td>${booking.slot ? booking.slot.slotNumber : 'N/A'}</td>
+                            <td>${booking.vehicle ? booking.vehicle.vehicleNumber : 'N/A'}</td>
+                            <td><span class="status-badge status-${statusClass}">${booking.status || ''}</span></td>
+                            <td>
+                                <button class="btn btn-success" onclick="checkoutBooking(${booking.bookingId})">
+                                    Checkout
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                    });
+                    tableHTML += '</table>';
+                    container.innerHTML = tableHTML;
+                })
+                .catch(error => {
+                    console.error('Error loading bookings:', error);
+                    document.getElementById('bookingsContainer').innerHTML = '<p class="error">Unable to load bookings. Please make sure you are logged in. If the problem persists, contact support.</p>';
+                });
+        }
+
+        // Checkout booking
+        function checkoutBooking(bookingId) {
+            if (confirm('Are you sure you want to checkout this booking?')) {
+                fetch(`/api/bookings/checkout/${bookingId}?paymentMethod=CASH`, {
+                    method: 'POST',
+                    headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthToken() ? { 'Authorization': 'Bearer ' + getAuthToken() } : {})
+                })
+                    .then(response => {
+                        if (response.ok) {
+                            alert('Checkout successful!');
+                            loadUserBookings();
+                            loadAvailableSlotsCount();
+                            loadAvailableSlots();
+                        } else {
+                            alert('Checkout failed. Please try again.');
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error during checkout:', error);
+                        alert('Error during checkout. Please try again.');
+                    });
+            }
+        }
+
+        // Load data on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            loadAvailableSlotsCount();
+            loadAvailableSlots();
+            loadUserBookings();
+
+            // Auto-refresh every 30 seconds
+            setInterval(() => {
+                loadAvailableSlotsCount();
+                loadAvailableSlots();
+                loadUserBookings();
+            }, 30000);
+        });
+    </script>
+</body>
+
+</html>

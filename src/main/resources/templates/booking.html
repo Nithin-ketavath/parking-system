@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Slot - Parking Management</title>
+
+    <link rel="stylesheet" href="/css/custom.css">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+
+<body>
+    <div class="sidebar">
+        <h2>Parking System</h2>
+        <a href="/">🏠 Dashboard</a>
+        <a href="/booking" class="active">🚗 Book a Slot</a>
+        <a href="/checkout">🕒 Checkout</a>
+        <a href="/profile">👤 Profile</a>
+    </div>
+
+    <div class="main-content">
+        <!-- Toast Notification -->
+        <div id="toast"
+            style="display:none;position:fixed;top:20px;right:20px;z-index:99999;max-width:400px;padding:15px;background:#f8d7da;color:#721c24;border:1px solid #f5c6cb;border-radius:5px;box-shadow:0 2px 8px rgba(0,0,0,0.1);font-size:1rem;animation:fadeIn 0.5s;">
+            <span id="toastMsg"></span>
+            <button onclick="document.getElementById('toast').style.display='none'"
+                style="float:right;background:none;border:none;font-size:18px;cursor:pointer;">&times;</button>
+        </div>
+        <div class="topbar">
+            <span class="username">Welcome, <span th:text="${username}">Guest</span></span>
+            <span th:if="${role} == 'ADMIN'" style="margin-left:20px;color:#007bff;font-weight:bold;">(Admin)</span>
+        </div>
+
+        <h1>Book a Slot</h1>
+
+        <div class="form-container">
+            <form id="bookingForm">
+                <div class="form-group">
+                    <label for="vehicleNumber">Vehicle Number:</label>
+                    <input type="text" name="vehicleNumber" id="vehicleNumber" required placeholder="e.g., MH12AB1234">
+                </div>
+
+                <div class="form-group">
+                    <label for="vehicleType">Vehicle Type:</label>
+                    <select name="vehicleType" id="vehicleType" onchange="filterSlots()">
+                        <option value="">All Types</option>
+                        <option value="CAR">Car</option>
+                        <option value="BIKE">Bike</option>
+                        <option value="TRUCK">Truck</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <button type="button" class="btn" onclick="loadAvailableSlots()">
+                        <i class="fas fa-refresh"></i> Refresh Slots
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div class="card">
+            <h2>Available Slots</h2>
+            <div id="slotsContainer" class="slots-grid">
+                <div class="text-center">
+                    <div class="loading"></div>
+                    <p class="mt-2">Loading available slots...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Selected Slot Info -->
+        <div id="selectedSlotInfo" class="card" style="display: none;">
+            <h2>Selected Slot Information</h2>
+            <div id="slotDetails"></div>
+            <div class="mt-2">
+                <button type="button" class="btn btn-success" id="bookSlotBtn" onclick="bookSlot()">
+                    <i class="fas fa-check"></i> Book This Slot
+                </button>
+                <button type="button" class="btn btn-warning" onclick="clearSelection()">
+                    <i class="fas fa-times"></i> Clear Selection
+                </button>
+            </div>
+        </div>
+
+        <!-- Success Modal -->
+        <div id="successModal" class="modal"
+            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+            <div
+                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
+                <h3 style="color: #28a745; margin-bottom: 20px;">
+                    <i class="fas fa-check-circle"></i> Booking Successful
+                </h3>
+                <div id="bookingDetails"></div>
+                <div style="text-align: right; margin-top: 20px;">
+                    <button class="btn" onclick="closeModal()">OK</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let selectedSlot = null;
+        let availableSlots = [];
+
+        // Try to read token stored in localStorage (if login sets a bearer token)
+        function getAuthToken() {
+            try {
+                return localStorage.getItem('authToken');
+            } catch (e) {
+                return null;
+            }
+        }
+
+        // Load available slots on page load
+        document.addEventListener('DOMContentLoaded', function () {
+            // Ensure vehicle number input always appears uppercase and value is uppercased
+            const vehicleInput = document.getElementById('vehicleNumber');
+            if (vehicleInput) {
+                vehicleInput.style.textTransform = 'uppercase';
+                // convert value to uppercase as the user types, preserving caret position
+                vehicleInput.addEventListener('input', function (e) {
+                    const start = this.selectionStart;
+                    const end = this.selectionEnd;
+                    this.value = this.value.toUpperCase();
+                    try {
+                        this.setSelectionRange(start, end);
+                    } catch (err) {
+                        // ignore if not supported
+                    }
+                });
+                // also uppercase any prefilled value
+                if (vehicleInput.value) vehicleInput.value = vehicleInput.value.toUpperCase();
+            }
+
+            loadAvailableSlots();
+        });
+
+        function loadAvailableSlots() {
+            const vehicleType = document.getElementById('vehicleType').value;
+            let url = '/api/slots/available';
+
+            if (vehicleType) {
+                url += `/${vehicleType}`;
+            }
+
+            fetch(url)
+                .then(response => response.json())
+                .then(slots => {
+                    availableSlots = slots;
+                    displaySlots(slots);
+                })
+                .catch(error => {
+                    console.error('Error loading slots:', error);
+                    document.getElementById('slotsContainer').innerHTML =
+                        '<div class="text-center"><p class="error">Error loading slots. Please try again.</p></div>';
+                });
+        }
+
+        function displaySlots(slots) {
+            const container = document.getElementById('slotsContainer');
+
+            if (slots.length === 0) {
+                container.innerHTML = '<div class="text-center"><p class="text-muted">No available slots found.</p></div>';
+                return;
+            }
+
+            container.innerHTML = '';
+            slots.forEach(slot => {
+                const slotCard = document.createElement('div');
+                slotCard.className = 'slot-card slot-available';
+                slotCard.innerHTML = `
+                <div class="slot-number">${slot.slotNumber}</div>
+                <div class="slot-status">Available</div>
+                <div style="font-size: 0.7rem; margin-top: 5px;">${slot.location}</div>
+                <div style="font-size: 0.7rem;">₹${slot.hourlyRate}/hr</div>
+            `;
+                slotCard.onclick = () => selectSlot(slotCard, slot.slotId);
+                container.appendChild(slotCard);
+            });
+        }
+
+        function selectSlot(cardElem, slotId) {
+            // Remove previous selection
+            document.querySelectorAll('.slot-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Add selection to clicked card
+            if (cardElem) {
+                cardElem.classList.add('selected');
+            }
+
+            // Find selected slot
+            selectedSlot = availableSlots.find(slot => slot.slotId === slotId);
+
+            // Show slot details
+            document.getElementById('selectedSlotInfo').style.display = 'block';
+            document.getElementById('slotDetails').innerHTML = `
+            <div class="booking-details">
+                <div class="detail-item">
+                    <div class="detail-label">Slot Number</div>
+                    <div class="detail-value">${selectedSlot.slotNumber}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Location</div>
+                    <div class="detail-value">${selectedSlot.location}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Vehicle Type</div>
+                    <div class="detail-value">${selectedSlot.vehicleType}</div>
+                </div>
+                <div class="detail-item">
+                    <div class="detail-label">Rate</div>
+                    <div class="detail-value">₹${selectedSlot.hourlyRate}/hour</div>
+                </div>
+            </div>
+        `;
+        }
+
+        function clearSelection() {
+            selectedSlot = null;
+            document.querySelectorAll('.slot-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.getElementById('selectedSlotInfo').style.display = 'none';
+        }
+
+        function getUsername() {
+            // Try to get username from DOM (Thymeleaf renders it)
+            const el = document.querySelector('.username span');
+            return el ? el.textContent.trim() : 'Guest';
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById('toast');
+            document.getElementById('toastMsg').textContent = msg;
+            toast.style.display = 'block';
+            toast.classList.add('fade-in');
+            setTimeout(() => {
+                toast.style.display = 'none';
+                toast.classList.remove('fade-in');
+            }, 3500);
+        }
+
+        function bookSlot() {
+            const vehicleNumber = document.getElementById('vehicleNumber').value;
+            const username = getUsername();
+
+            if (username === 'Guest') {
+                showToast('You need to log in before you can book a slot.');
+                return;
+            }
+
+            if (!vehicleNumber || !selectedSlot) {
+                showToast('Please fill in all fields and select a slot.');
+                return;
+            }
+
+            const token = getAuthToken();
+            const headers = {};
+            if (token) {
+                headers['Authorization'] = 'Bearer ' + token;
+            }
+
+            fetch(`/api/bookings/book/${selectedSlot.slotId}?vehicleNumber=${encodeURIComponent(vehicleNumber)}`, {
+                method: 'POST',
+                headers: headers,
+                credentials: 'include'
+            })
+                .then(async response => {
+                    if (response.status === 401) {
+                        window.location.href = '/login';
+                        return Promise.reject('Unauthorized');
+                    }
+                    if (!response.ok) {
+                        const text = await response.text();
+                        throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
+                    }
+                    return response.json();
+                })
+                .then(booking => {
+                    // Show success modal
+                    document.getElementById('bookingDetails').innerHTML = `
+                <p><strong>Booking ID:</strong> ${booking.bookingId}</p>
+                <p><strong>Slot:</strong> ${selectedSlot.slotNumber}</p>
+                <p><strong>Vehicle:</strong> ${vehicleNumber}</p>
+                <p><strong>Status:</strong> ${booking.status}</p>
+                <p><strong>Booking Time:</strong> ${new Date(booking.bookingTime).toLocaleString()}</p>
+            `;
+
+                    showModal();
+
+                    // Clear form
+                    document.getElementById('bookingForm').reset();
+                    clearSelection();
+                    loadAvailableSlots();
+                })
+                .catch(error => {
+                    console.error('Error booking slot:', error);
+                    showToast('Error booking slot. Please try again.');
+                });
+        }
+
+        function filterSlots() {
+            loadAvailableSlots();
+        }
+
+        function showModal() {
+            document.getElementById('successModal').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('successModal').style.display = 'none';
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function (event) {
+            const modal = document.getElementById('successModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+    </script>
+</body>
+
+</html>

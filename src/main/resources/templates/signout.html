@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign out</title>
+    <link rel="stylesheet" href="/css/custom.css">
+    <meta http-equiv="refresh" content="3;url=/">
+    <style>
+        .center { max-width: 520px; margin: 80px auto; text-align: center; }
+    </style>
+    <script>
+        function doLogout(){
+            // Submit to Spring Security's default logout endpoint
+            fetch('/logout', { method: 'POST', headers: { 'X-Requested-With':'fetch' }})
+              .then(() => { window.location.href = '/login?logout'; })
+              .catch(() => { window.location.href = '/login?logout'; });
+        }
+        document.addEventListener('DOMContentLoaded', doLogout);
+    </script>
+    </head>
+<body>
+<div class="center">
+    <div class="card">
+        <h2>Signing you out…</h2>
+        <p class="mt-1">You will be redirected shortly.</p>
+        <div class="loading" style="margin-top:12px;"></div>
+        <div style="margin-top:16px">
+            <a class="btn" href="/login">Go to Login</a>
+            <a class="btn btn-warning" href="/">Home</a>
+        </div>
+    </div>
+    <form id="logoutForm" method="post" action="/logout" style="display:none"></form>
+    </div>
+</body>
+</html>
+
+
+
