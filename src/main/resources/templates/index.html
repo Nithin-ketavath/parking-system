@@ -4,51 +4,83 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Parking Management</title>
+    <title>Dashboard - SpotFlow Parking</title>
     <link rel="stylesheet" href="/css/custom.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 
 <body>
+    <!-- Collapsible Sidebar -->
     <div class="sidebar">
-        <h2>Parking System</h2>
-        <a href="/" class="active">🏠 Dashboard</a>
-        <a href="/booking">🚗 Book a Slot</a>
-        <a href="/checkout">🕒 Checkout</a>
-        <a href="/profile">👤 Profile</a>
+        <h2>SpotFlow</h2>
+        <div class="sidebar-menu">
+            <a href="/" class="active"><i class="fas fa-th-large"></i> Dashboard</a>
+            <a href="/booking"><i class="fas fa-parking"></i> Book a Slot</a>
+            <a href="/checkout"><i class="fas fa-sign-out-alt"></i> Checkout</a>
+            <a href="/profile"><i class="fas fa-user-circle"></i> Profile</a>
+            <a href="/admin" th:if="${role} == 'ADMIN'"><i class="fas fa-sliders-h"></i> Admin Console</a>
+        </div>
     </div>
 
+    <!-- Main Content Grid -->
     <div class="main-content">
-        <div class="topbar">
-            <span class="username">Welcome, <span th:text="${username}">Guest</span></span>
-            <span th:if="${role} == 'ADMIN'" style="margin-left:20px;color:#007bff;font-weight:bold;">(Admin)</span>
-        </div>
-
-        <h1 th:if="${role} == 'ADMIN'">Admin Dashboard</h1>
-        <h1 th:if="${role} != 'ADMIN'">Dashboard</h1>
-
-        <div class="card">
-            <h2>🚘 Available Slots</h2>
-            <p id="availableSlotsCount">Loading...</p>
-            <div th:if="${role} == 'ADMIN'" style="margin-top:10px;">
-                <a href="/admin/manage-slots" class="btn btn-primary">Manage Slots</a>
-                <a href="/admin/bookings" class="btn btn-secondary" style="margin-left:10px;">View All Bookings</a>
+        <!-- Topbar navigation -->
+        <div class="topbar fade-in">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <h2 style="font-size: 1.1rem; margin-bottom: 0; font-family: var(--font-base); display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-shield-alt text-muted"></i> 
+                    Workspace: <strong style="color: var(--accent-color);">SpotFlow Management</strong>
+                </h2>
+            </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <span class="username">
+                    <i class="fas fa-user-circle"></i> <span th:text="${username}">Guest</span>
+                    <span th:if="${role} == 'ADMIN'" class="status-badge status-checked-in" style="margin-left: 6px; padding: 2px 8px; font-size: 0.65rem;">Admin</span>
+                </span>
+                <button onclick="logout()" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; border-radius: var(--radius-sm);">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
             </div>
         </div>
 
-        <h2>Your Bookings</h2>
-        <div id="bookingsContainer">
-            <div class="text-center">
-                <div class="loading"></div>
-                <p class="mt-2">Loading your bookings...</p>
-            </div>
+        <div class="fade-in">
+            <h1 th:if="${role} == 'ADMIN'">System Administration Dashboard</h1>
+            <h1 th:if="${role} != 'ADMIN'">Dashboard</h1>
         </div>
 
-        <!-- Available Slots Grid -->
-        <div class="card">
-            <h2>📍 Available Parking Slots</h2>
-            <div id="slotsGrid" class="slots-grid">
-                <!-- Slots will be loaded here -->
+        <div style="display: grid; grid-template-columns: 1fr; gap: 24px;" class="fade-in">
+            <!-- Available Slots Indicator -->
+            <div class="card" style="border-left: 4px solid var(--secondary-color);">
+                <h2><i class="fas fa-signal" style="color: var(--secondary-color);"></i> Slot Availability Stats</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+                    <div>
+                        <p id="availableSlotsCount" style="font-size: 1.25rem; font-weight: 700; color: var(--primary-color);">Loading occupancy status...</p>
+                        <p class="text-muted" style="font-size: 0.875rem; margin-top: 4px;">Real-time slots status automatically updates every 30 seconds.</p>
+                    </div>
+                    <div th:if="${role} == 'ADMIN'" style="display: flex; gap: 12px;">
+                        <a href="/admin" class="btn btn-primary"><i class="fas fa-cog"></i> Admin Panel</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- User's Active Bookings Section -->
+            <div class="card" style="border-left: 4px solid var(--accent-color);">
+                <h2><i class="fas fa-receipt" style="color: var(--accent-color);"></i> Active Bookings</h2>
+                <div id="bookingsContainer">
+                    <div class="text-center py-4">
+                        <div class="loading"></div>
+                        <p class="mt-2 text-muted">Loading active bookings...</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Parking Grid Visualization Widget -->
+            <div class="card">
+                <h2><i class="fas fa-th" style="color: var(--primary-color);"></i> Parking Lots Visual Grid</h2>
+                <p class="text-muted" style="font-size: 0.875rem; margin-top: -12px; margin-bottom: 16px;">Click on any available slots (green) to place a reservation.</p>
+                <div id="slotsGrid" class="slots-grid">
+                    <!-- Slots loaded here via JS -->
+                </div>
             </div>
         </div>
     </div>
@@ -65,23 +97,12 @@
             localStorage.removeItem('authToken');
         }
 
-        // Example: Set token after login (replace with actual login logic)
-        // setAuthToken('your-token-here');
-
         // Remove token on logout
         function logout() {
             removeAuthToken();
             window.location.href = '/signout';
         }
 
-        // Optionally, check token on page load to keep user logged in
-        document.addEventListener('DOMContentLoaded', function () {
-            const token = getAuthToken();
-            if (token) {
-                // Optionally, use token to fetch user info or keep session
-                // e.g., fetch('/api/user/me', { headers: { Authorization: 'Bearer ' + token } })
-            }
-        });
         // Load available slots count
         function loadAvailableSlotsCount() {
             const token = getAuthToken();
@@ -108,15 +129,16 @@
                     slotsGrid.innerHTML = '';
 
                     if (slots.length === 0) {
-                        slotsGrid.innerHTML = '<div class="col-12 text-center"><p class="text-muted">No available slots at the moment.</p></div>';
+                        slotsGrid.innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 30px;"><p class="text-muted">No available slots at the moment.</p></div>';
                     } else {
                         slots.forEach(slot => {
                             const slotCard = document.createElement('div');
                             slotCard.className = 'slot-card slot-available';
                             slotCard.innerHTML = `
-                            <div class="slot-number">${slot.slotNumber}</div>
-                            <div class="slot-status">Available</div>
-                        `;
+                                <div class="slot-number">${slot.slotNumber}</div>
+                                <div class="slot-status">Available</div>
+                                <div style="font-size: 0.7rem; margin-top: 4px; opacity: 0.85;">${slot.vehicleType}</div>
+                            `;
                             slotCard.onclick = () => {
                                 window.location.href = `/booking?slotId=${slot.slotId}`;
                             };
@@ -126,26 +148,21 @@
                 })
                 .catch(error => {
                     console.error('Error loading slots:', error);
-                    document.getElementById('slotsGrid').innerHTML = '<div class="col-12 text-center"><p class="error">Error loading slots</p></div>';
+                    document.getElementById('slotsGrid').innerHTML = '<div style="grid-column: 1/-1; text-align: center; padding: 20px;"><p class="error">Error loading slots</p></div>';
                 });
         }
 
-        // Load user bookings (robust: prefer user-specific endpoint then fall back to global active bookings)
+        // Load user bookings
         function loadUserBookings() {
             const token = getAuthToken();
             const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
             fetch('/api/bookings/my/active', { headers })
                 .then(response => {
                     const ct = (response.headers.get('content-type') || '').toLowerCase();
-                    // If the response is not OK or not JSON (e.g. login HTML), fall back to public endpoint
                     if (!response.ok || !ct.includes('application/json')) {
                         return fetch('/api/bookings/active', { headers })
                             .then(pubRes => {
-                                if (!pubRes.ok) throw new Error('Failed to load bookings from public endpoint');
-                                const pubCt = (pubRes.headers.get('content-type') || '').toLowerCase();
-                                if (!pubCt.includes('application/json')) {
-                                    return pubRes.text().then(t => { throw new Error('Public bookings endpoint did not return JSON: ' + t.substring(0, 200)); });
-                                }
+                                if (!pubRes.ok) throw new Error('Failed to load bookings');
                                 return pubRes.json();
                             });
                     }
@@ -154,43 +171,46 @@
                 .then(bookings => {
                     const container = document.getElementById('bookingsContainer');
                     if (!bookings || bookings.length === 0) {
-                        container.innerHTML = '<p class="text-center text-muted">No active bookings found.</p>';
+                        container.innerHTML = '<div style="text-align:center; padding:20px;"><p class="text-muted">No active bookings found.</p></div>';
                         return;
                     }
                     let tableHTML = `
-                    <div class="text-muted" style="margin-bottom:10px;">Tip: Use the Booking ID below for checkout.</div>
-                    <table>
-                        <tr>
-                            <th>Booking ID</th>
-                            <th>Slot</th>
-                            <th>Vehicle</th>
-                            <th>Status</th>
-                            <th>Action</th>
-                        </tr>
-                `;
+                        <div class="text-muted mb-2" style="font-size: 0.85rem;"><i class="fas fa-info-circle"></i> Tip: Use the Booking ID below for checkout processing.</div>
+                        <div style="overflow-x: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Booking ID</th>
+                                        <th>Slot Number</th>
+                                        <th>Vehicle Number</th>
+                                        <th>Status</th>
+                                        <th style="text-align: right;">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
                     bookings.forEach(booking => {
-                        const checkInTime = new Date(booking.checkInTime).toLocaleString();
                         const statusClass = booking.status ? booking.status.toLowerCase().replace('_', '-') : '';
                         tableHTML += `
-                        <tr>
-                            <td>${booking.bookingId}</td>
-                            <td>${booking.slot ? booking.slot.slotNumber : 'N/A'}</td>
-                            <td>${booking.vehicle ? booking.vehicle.vehicleNumber : 'N/A'}</td>
-                            <td><span class="status-badge status-${statusClass}">${booking.status || ''}</span></td>
-                            <td>
-                                <button class="btn btn-success" onclick="checkoutBooking(${booking.bookingId})">
-                                    Checkout
-                                </button>
-                            </td>
-                        </tr>
-                    `;
+                            <tr>
+                                <td><strong style="color: var(--accent-color);">#${booking.bookingId}</strong></td>
+                                <td><span style="font-weight:600;">${booking.slot ? booking.slot.slotNumber : 'N/A'}</span></td>
+                                <td><code style="background:#F1F5F9; padding:4px 8px; border-radius:4px; font-weight:600;">${booking.vehicle ? booking.vehicle.vehicleNumber : 'N/A'}</code></td>
+                                <td><span class="status-badge status-${statusClass}">${booking.status || ''}</span></td>
+                                <td style="text-align: right;">
+                                    <button class="btn btn-success" style="padding: 6px 12px; font-size: 0.8rem;" onclick="checkoutBooking(${booking.bookingId})">
+                                        <i class="fas fa-sign-out-alt"></i> Checkout
+                                    </button>
+                                </td>
+                            </tr>
+                        `;
                     });
-                    tableHTML += '</table>';
+                    tableHTML += '</tbody></table></div>';
                     container.innerHTML = tableHTML;
                 })
                 .catch(error => {
                     console.error('Error loading bookings:', error);
-                    document.getElementById('bookingsContainer').innerHTML = '<p class="error">Unable to load bookings. Please make sure you are logged in. If the problem persists, contact support.</p>';
+                    document.getElementById('bookingsContainer').innerHTML = '<div style="padding: 10px;"><p class="error">Unable to load bookings. Please make sure you are logged in. If the problem persists, contact support.</p></div>';
                 });
         }
 

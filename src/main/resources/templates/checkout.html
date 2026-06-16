@@ -4,106 +4,131 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Checkout - Parking Management</title>
+    <title>Checkout - SpotFlow Parking</title>
     <link rel="stylesheet" href="/css/custom.css">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
 
 <body>
+    <!-- Sidebar navigation -->
     <div class="sidebar">
-        <h2>Parking System</h2>
-        <a href="/">🏠 Dashboard</a>
-        <a href="/booking">🚗 Book a Slot</a>
-        <a href="/checkout" class="active">🕒 Checkout</a>
-        <a href="/profile">👤 Profile</a>
+        <h2>SpotFlow</h2>
+        <div class="sidebar-menu">
+            <a href="/"><i class="fas fa-th-large"></i> Dashboard</a>
+            <a href="/booking"><i class="fas fa-parking"></i> Book a Slot</a>
+            <a href="/checkout" class="active"><i class="fas fa-sign-out-alt"></i> Checkout</a>
+            <a href="/profile"><i class="fas fa-user-circle"></i> Profile</a>
+            <a href="/admin" th:if="${role} == 'ADMIN'"><i class="fas fa-sliders-h"></i> Admin Console</a>
+        </div>
     </div>
 
+    <!-- Main Content -->
     <div class="main-content">
-        <div class="topbar">
-            <span class="username">Welcome, <span th:text="${username}">Guest</span></span>
-            <span th:if="${role} == 'ADMIN'" style="margin-left:20px;color:#007bff;font-weight:bold;">(Admin)</span>
-        </div>
-
-        <h1>Checkout</h1>
-
-        <!-- Search Form -->
-        <div class="form-container">
-            <div class="form-group">
-                <label for="searchType">Search By</label>
-                <select id="searchType" onchange="toggleSearchInput()">
-                    <option value="bookingId">Booking ID</option>
-                    <option value="vehicleNumber">Vehicle Number</option>
-                    <option value="userId">User ID</option>
-                </select>
+        <div class="topbar fade-in">
+            <div style="display: flex; align-items: center; gap: 8px;">
+                <h2 style="font-size: 1.1rem; margin-bottom: 0; font-family: var(--font-base); display: flex; align-items: center; gap: 8px;">
+                    <i class="fas fa-sign-out-alt text-muted"></i>
+                    Workspace: <strong style="color: var(--accent-color);">Slot Checkouts</strong>
+                </h2>
             </div>
-            <div class="form-group">
-                <label for="searchValue">Search Value</label>
-                <div style="display: flex; gap: 10px;">
-                    <input type="text" id="searchValue" placeholder="Enter search value" style="flex: 1;">
-                    <button class="btn" onclick="searchBookings()">
-                        <i class="fas fa-search"></i> Search
-                    </button>
-                </div>
+            <div style="display: flex; align-items: center; gap: 16px;">
+                <span class="username">
+                    <i class="fas fa-user-circle"></i> <span th:text="${username}">Guest</span>
+                    <span th:if="${role} == 'ADMIN'" class="status-badge status-checked-in" style="margin-left: 6px; padding: 2px 8px; font-size: 0.65rem;">Admin</span>
+                </span>
+                <a href="/signout" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem; border-radius: var(--radius-sm);">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
             </div>
         </div>
 
-        <!-- Active Bookings -->
-        <div class="card">
-            <h2>Active Bookings</h2>
-            <div id="bookingsContainer" class="booking-cards">
-                <div class="text-center">
-                    <div class="loading"></div>
-                    <p class="mt-2">Loading active bookings...</p>
-                </div>
-            </div>
-        </div>
+        <h1 class="fade-in">Process Checkout & Payments</h1>
 
-        <!-- Selected Booking Info -->
-        <div id="selectedBookingInfo" class="card" style="display: none;">
-            <h2>Selected Booking Information</h2>
-            <div id="bookingDetails"></div>
-        </div>
-
-        <!-- Check Out Form -->
-        <div id="checkoutForm" class="form-container" style="display: none;">
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
-                <div class="cost-display">
-                    <h4>Total Cost</h4>
-                    <h2 id="totalCost">₹0</h2>
-                    <p id="durationInfo">Duration: 0 hours</p>
+        <!-- Search Form Card -->
+        <div class="form-container fade-in" style="border-left: 4px solid var(--accent-color);">
+            <h2 style="font-size:1.1rem; margin-bottom:16px; border-bottom:none; padding-bottom:0;"><i class="fas fa-search" style="color: var(--accent-color);"></i> Find Booking</h2>
+            <div style="display: grid; grid-template-columns: 1fr 2fr; gap: 20px;">
+                <div class="form-group mb-0">
+                    <label for="searchType">Search By</label>
+                    <select id="searchType" onchange="toggleSearchInput()">
+                        <option value="bookingId">Booking ID</option>
+                        <option value="vehicleNumber">Vehicle Number</option>
+                        <option value="userId">User ID</option>
+                    </select>
                 </div>
-                <div>
-                    <div class="form-group">
-                        <label for="paymentMethod">Payment Method</label>
-                        <select id="paymentMethod">
-                            <option value="CASH">💵 Cash</option>
-                            <option value="CARD">💳 Card</option>
-                            <option value="UPI">📱 UPI</option>
-                        </select>
+                <div class="form-group mb-0">
+                    <label for="searchValue">Search Value</label>
+                    <div style="display: flex; gap: 12px;">
+                        <input type="text" id="searchValue" placeholder="Enter Booking ID" style="flex: 1;">
+                        <button class="btn btn-primary" onclick="searchBookings()">
+                            <i class="fas fa-search"></i> Search
+                        </button>
                     </div>
                 </div>
             </div>
-            <div style="text-align: right; margin-top: 20px;">
-                <button type="button" class="btn btn-warning" onclick="clearSelection()">
-                    <i class="fas fa-times"></i> Clear Selection
-                </button>
-                <button type="button" class="btn btn-success" id="checkoutBtn" onclick="processCheckout()" disabled>
-                    <i class="fas fa-check"></i> Process Checkout
-                </button>
+        </div>
+
+        <!-- Active Bookings Grid -->
+        <div class="card fade-in">
+            <h2><i class="fas fa-list-ul text-muted"></i> Active Booking List</h2>
+            <div id="bookingsContainer" class="booking-cards">
+                <div class="text-center py-4">
+                    <div class="loading"></div>
+                    <p class="mt-2 text-muted">Loading active bookings...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Selected Booking Info Panel -->
+        <div id="selectedBookingInfo" class="card fade-in" style="display: none; border-left: 4px solid var(--accent-color);">
+            <h2><i class="fas fa-info-circle" style="color: var(--accent-color);"></i> Selected Booking Info</h2>
+            <div id="bookingDetails"></div>
+        </div>
+
+        <!-- Check Out Form / Cost Calculator Panel -->
+        <div id="checkoutForm" class="form-container fade-in" style="display: none; border-left: 4px solid var(--success-color);">
+            <h2><i class="fas fa-credit-card" style="color: var(--success-color);"></i> Payment & Checkout</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start;">
+                <div class="cost-display">
+                    <h4>Grand Total Cost</h4>
+                    <h2 id="totalCost">₹0</h2>
+                    <p id="durationInfo"><i class="fas fa-hourglass-half"></i> Duration: 0 hours</p>
+                </div>
+                
+                <div>
+                    <div class="form-group">
+                        <label for="paymentMethod">Select Payment Method</label>
+                        <select id="paymentMethod">
+                            <option value="CASH">💵 Cash Payment</option>
+                            <option value="CARD">💳 Card Payment</option>
+                            <option value="UPI">📱 Unified Payments Interface (UPI)</option>
+                        </select>
+                    </div>
+                    
+                    <div style="display: flex; gap: 12px; margin-top: 32px; justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="clearSelection()">
+                            <i class="fas fa-times"></i> Clear Selection
+                        </button>
+                        <button type="button" class="btn btn-success" id="checkoutBtn" onclick="processCheckout()" disabled>
+                            <i class="fas fa-check"></i> Complete Checkout
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
 
         <!-- Success Modal -->
         <div id="successModal" class="modal"
-            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-            <div
-                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%;">
-                <h3 style="color: #28a745; margin-bottom: 20px;">
-                    <i class="fas fa-check-circle"></i> Checkout Successful
+            style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(15, 23, 42, 0.6); backdrop-filter: blur(4px); z-index: 1000;">
+            <div class="modal-content"
+                style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); padding: 30px; max-width: 550px; width: 90%;">
+                <h3 style="color: var(--success-color); margin-bottom: 20px; display: flex; align-items: center; gap: 10px; font-family: var(--font-heading); font-weight: 700;">
+                    <i class="fas fa-check-circle" style="font-size: 1.5rem;"></i> Checkout Completed Successfully
                 </h3>
-                <div id="checkoutDetails"></div>
-                <div style="text-align: right; margin-top: 20px;">
-                    <button class="btn" onclick="closeModal()">OK</button>
+                <div id="checkoutDetails" style="display: flex; flex-direction: column; gap: 12px; background: var(--light-color); padding: 18px; border-radius: var(--radius-sm); border: 1px solid var(--border-color); font-size: 0.95rem;">
+                </div>
+                <div style="text-align: right; margin-top: 24px;">
+                    <button class="btn btn-primary" onclick="closeModal()">Close</button>
                 </div>
             </div>
         </div>
@@ -113,14 +138,11 @@
         let selectedBooking = null;
         let activeBookings = [];
 
-        // Auth token helper (reuse same localStorage key used in index)
         function getAuthToken() {
             return localStorage.getItem('authToken');
         }
 
-        // Load active bookings on page load
         document.addEventListener('DOMContentLoaded', function () {
-            // Prefer user-specific active bookings if logged in
             const token = getAuthToken();
             const headers = token ? { 'Authorization': 'Bearer ' + token } : {};
             fetch('/api/bookings/my/active', { headers })
@@ -141,7 +163,7 @@
                 .catch(error => {
                     console.error('Error loading bookings:', error);
                     document.getElementById('bookingsContainer').innerHTML =
-                        '<div class="text-center"><p class="error">Error loading bookings. Please try again.</p></div>';
+                        '<div class="text-center py-4"><p class="error">Error loading bookings. Please try again.</p></div>';
                 });
         }
 
@@ -149,7 +171,7 @@
             const container = document.getElementById('bookingsContainer');
 
             if (bookings.length === 0) {
-                container.innerHTML = '<div class="text-center"><p class="text-muted">No active bookings found.</p></div>';
+                container.innerHTML = '<div class="text-center py-4" style="grid-column: 1/-1;"><p class="text-muted">No active bookings found.</p></div>';
                 return;
             }
 
@@ -163,87 +185,83 @@
                 bookingCard.className = 'booking-card';
                 bookingCard.onclick = () => selectBooking(bookingCard, booking.bookingId);
                 bookingCard.innerHTML = `
-                <div class="booking-header">
-                    Booking #${booking.bookingId}
-                </div>
-                <div class="booking-body">
-                    <div class="booking-details">
-                        <div class="detail-item">
-                            <div class="detail-label">Slot</div>
-                            <div class="detail-value">${booking.slot ? booking.slot.slotNumber : 'N/A'}</div>
+                    <div class="booking-header">
+                        Booking #${booking.bookingId}
+                    </div>
+                    <div class="booking-body">
+                        <div class="booking-details">
+                            <div class="detail-item">
+                                <div class="detail-label">Slot</div>
+                                <div class="detail-value" style="color: var(--primary-color);">${booking.slot ? booking.slot.slotNumber : 'N/A'}</div>
+                            </div>
+                            <div class="detail-item">
+                                <div class="detail-label">Vehicle</div>
+                                <div class="detail-value" style="font-family: monospace;">${booking.vehicle ? booking.vehicle.vehicleNumber : 'N/A'}</div>
+                            </div>
+                            <div class="detail-item" style="grid-column: span 2;">
+                                <div class="detail-label">Check-in</div>
+                                <div class="detail-value" style="font-size:0.75rem;">${checkInTime}</div>
+                            </div>
+                            <div class="detail-item" style="grid-column: span 2;">
+                                <div class="detail-label">Elapsed Duration</div>
+                                <div class="detail-value"><i class="far fa-clock"></i> ${duration}</div>
+                            </div>
                         </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Vehicle</div>
-                            <div class="detail-value">${booking.vehicle ? booking.vehicle.vehicleNumber : 'N/A'}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Check-in</div>
-                            <div class="detail-value">${checkInTime}</div>
-                        </div>
-                        <div class="detail-item">
-                            <div class="detail-label">Duration</div>
-                            <div class="detail-value">${duration}</div>
+                        <div style="text-align: center; margin-top: 10px; border-top: 1px solid var(--border-color); padding-top: 12px;">
+                            <span class="status-badge status-checked-in">${booking.status}</span>
+                            <div style="margin-top: 10px; font-weight: 700; color: var(--success-color); font-size:1.1rem;">
+                                Est. Cost: ₹${estimatedCost}
+                            </div>
                         </div>
                     </div>
-                    <div style="text-align: center; margin-top: 10px;">
-                        <span class="status-badge status-checked-in">${booking.status}</span>
-                        <div style="margin-top: 10px; font-weight: bold; color: #28a745;">
-                            Est. Cost: ₹${estimatedCost}
-                        </div>
-                    </div>
-                </div>
-            `;
+                `;
                 container.appendChild(bookingCard);
             });
         }
 
         function selectBooking(element, bookingId) {
-            // Remove previous selection
             document.querySelectorAll('.booking-card').forEach(card => {
                 card.classList.remove('selected');
             });
 
-            // Add selection to clicked card
             if (element) {
                 element.classList.add('selected');
             }
 
-            // Find selected booking
             selectedBooking = activeBookings.find(booking => booking.bookingId === bookingId);
 
-            // Show booking details
             document.getElementById('selectedBookingInfo').style.display = 'block';
             document.getElementById('bookingDetails').innerHTML = `
-            <div class="booking-details">
-                <div class="detail-item">
-                    <div class="detail-label">Booking ID</div>
-                    <div class="detail-value">${selectedBooking.bookingId}</div>
+                <div class="booking-details">
+                    <div class="detail-item">
+                        <div class="detail-label">Booking ID</div>
+                        <div class="detail-value" style="color:var(--accent-color); font-weight:700;">#${selectedBooking.bookingId}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Parking Slot</div>
+                        <div class="detail-value" style="font-weight:700;">${selectedBooking.slot ? selectedBooking.slot.slotNumber + ' (' + selectedBooking.slot.location + ')' : 'N/A'}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Vehicle Registration</div>
+                        <div class="detail-value" style="font-family:monospace;">${selectedBooking.vehicle ? selectedBooking.vehicle.vehicleNumber : 'N/A'}</div>
+                    </div>
+                    <div class="detail-item">
+                        <div class="detail-label">Check-in Timestamp</div>
+                        <div class="detail-value" style="font-size:0.8rem;">${new Date(selectedBooking.checkInTime).toLocaleString()}</div>
+                    </div>
+                    <div class="detail-item" style="grid-column: span 2;">
+                        <div class="detail-label">Current Status</div>
+                        <div class="detail-value"><span class="status-badge status-checked-in">${selectedBooking.status}</span></div>
+                    </div>
                 </div>
-                <div class="detail-item">
-                    <div class="detail-label">Slot</div>
-                    <div class="detail-value">${selectedBooking.slot ? selectedBooking.slot.slotNumber + ' (' + selectedBooking.slot.location + ')' : 'N/A'}</div>
-                </div>
-                <div class="detail-item">
-                    <div class="detail-label">Vehicle</div>
-                    <div class="detail-value">${selectedBooking.vehicle ? selectedBooking.vehicle.vehicleNumber : 'N/A'}</div>
-                </div>
-                <div class="detail-item">
-                    <div class="detail-label">Check-in Time</div>
-                    <div class="detail-value">${new Date(selectedBooking.checkInTime).toLocaleString()}</div>
-                </div>
-                <div class="detail-item">
-                    <div class="detail-label">Current Status</div>
-                    <div class="detail-value">${selectedBooking.status}</div>
-                </div>
-            </div>
-        `;
+            `;
 
-            // Show checkout form and calculate cost
             document.getElementById('checkoutForm').style.display = 'block';
             calculateAndDisplayCost();
 
-            // Enable checkout button
             document.getElementById('checkoutBtn').disabled = false;
+            
+            document.getElementById('checkoutForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
 
         function calculateAndDisplayCost() {
@@ -255,7 +273,7 @@
             const duration = calculateDuration(selectedBooking.checkInTime);
 
             document.getElementById('totalCost').textContent = `₹${cost}`;
-            document.getElementById('durationInfo').textContent = `Duration: ${duration}`;
+            document.getElementById('durationInfo').innerHTML = `<i class="fas fa-hourglass-half"></i> Duration: ${duration}`;
         }
 
         function calculateCost(checkInTime, checkOutTime, hourlyRate) {
@@ -298,17 +316,13 @@
                 headers: Object.assign({ 'Content-Type': 'application/json' }, getAuthToken() ? { 'Authorization': 'Bearer ' + getAuthToken() } : {})
             })
                 .then(response => response.text().then(text => {
-                    console.log('Checkout response status:', response.status);
-
                     if (response.status === 401) {
                         window.location.href = '/login';
                         return Promise.reject('Unauthorized');
                     }
 
                     if (!response.ok) {
-                        // response body may be HTML/stacktrace; include a snippet
                         const snippet = text ? text.substring(0, 1000) : 'No response body';
-                        console.error('Checkout error (server returned non-OK):', response.status, snippet);
                         throw new Error(`HTTP ${response.status}: ${snippet}`);
                     }
 
@@ -320,69 +334,60 @@
                     return JSON.parse(text);
                 }))
                 .then(booking => {
-                    console.log('Checkout successful:', booking);
-
-                    // Show success modal
                     const totalCost = booking.totalCost;
                     const checkOutTime = new Date(booking.checkOutTime).toLocaleString();
 
                     document.getElementById('checkoutDetails').innerHTML = `
-                <p><strong>Booking ID:</strong> ${booking.bookingId}</p>
-                <p><strong>Slot:</strong> ${booking.slot ? booking.slot.slotNumber : 'N/A'}</p>
-                <p><strong>Vehicle:</strong> ${booking.vehicle ? booking.vehicle.vehicleNumber : 'N/A'}</p>
-                <p><strong>Check-out Time:</strong> ${checkOutTime}</p>
-                <p><strong>Total Cost:</strong> ₹${totalCost}</p>
-                <p><strong>Payment Method:</strong> ${paymentMethod}</p>
-                <p><strong>Status:</strong> ${booking.status}</p>
-            `;
+                        <div style="display:flex; justify-content:space-between;"><strong>Booking ID:</strong> <span style="color:var(--accent-color); font-weight:600;">#${booking.bookingId}</span></div>
+                        <div style="display:flex; justify-content:space-between;"><strong>Parking Slot:</strong> <span>${booking.slot ? booking.slot.slotNumber : 'N/A'}</span></div>
+                        <div style="display:flex; justify-content:space-between;"><strong>Vehicle Number:</strong> <code>${booking.vehicle ? booking.vehicle.vehicleNumber : 'N/A'}</code></div>
+                        <div style="display:flex; justify-content:space-between;"><strong>Check-out Time:</strong> <span>${checkOutTime}</span></div>
+                        <div style="display:flex; justify-content:space-between;"><strong>Total Cost Paid:</strong> <span style="color:var(--success-color); font-weight:700;">₹${totalCost}</span></div>
+                        <div style="display:flex; justify-content:space-between;"><strong>Payment Mode:</strong> <span>${paymentMethod}</span></div>
+                        <div style="display:flex; justify-content:space-between;"><strong>Final Status:</strong> <span class="status-badge status-checked-out" style="font-size:0.65rem; padding: 2px 8px;">${booking.status}</span></div>
+                    `;
 
                     showModal();
 
-                    // Show success notification
                     const successDiv = document.createElement('div');
                     successDiv.className = 'alert alert-success';
-                    successDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px; padding: 15px; background: #d4edda; color: #155724; border: 1px solid #c3e6cb; border-radius: 5px;';
+                    successDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px; padding: 15px; box-shadow:var(--shadow-lg);';
                     successDiv.innerHTML = `
-                <strong>Checkout Successful!</strong><br>
-                Booking #${booking.bookingId} has been checked out successfully.
-                <button onclick="this.parentElement.remove()" style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">&times;</button>
-            `;
+                        <strong>Checkout Successful!</strong><br>
+                        Booking #${booking.bookingId} has been checked out successfully.
+                        <button onclick="this.parentElement.remove()" style="float: right; background: none; border: none; font-size: 18px; cursor: pointer; color:#065F46; font-weight:bold;">&times;</button>
+                    `;
 
                     document.body.appendChild(successDiv);
 
-                    // Auto-remove after 3 seconds
                     setTimeout(() => {
                         if (successDiv.parentElement) {
                             successDiv.remove();
                         }
                     }, 3000);
 
-                    // Clear selection and reload
                     clearSelection();
                     loadActiveBookings();
                 })
                 .catch(error => {
                     console.error('Error processing checkout:', error);
 
-                    // Show detailed error message
                     let errorMessage = 'Error processing checkout. Please try again.';
                     if (error.message) {
                         errorMessage = error.message;
                     }
 
-                    // Create a more user-friendly error display
                     const errorDiv = document.createElement('div');
                     errorDiv.className = 'alert alert-danger';
-                    errorDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px; padding: 15px; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 5px;';
+                    errorDiv.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999; max-width: 400px; padding: 15px; box-shadow:var(--shadow-lg);';
                     errorDiv.innerHTML = `
-                <strong>Checkout Failed!</strong><br>
-                ${errorMessage}
-                <button onclick="this.parentElement.remove()" style="float: right; background: none; border: none; font-size: 18px; cursor: pointer;">&times;</button>
-            `;
+                        <strong>Checkout Failed!</strong><br>
+                        ${errorMessage}
+                        <button onclick="this.parentElement.remove()" style="float: right; background: none; border: none; font-size: 18px; cursor: pointer; color:#991B1B; font-weight:bold;">&times;</button>
+                    `;
 
                     document.body.appendChild(errorDiv);
 
-                    // Auto-remove after 5 seconds
                     setTimeout(() => {
                         if (errorDiv.parentElement) {
                             errorDiv.remove();
@@ -400,7 +405,6 @@
                 return;
             }
 
-            // Filter bookings based on search criteria
             let filteredBookings = activeBookings.filter(booking => {
                 switch (searchType) {
                     case 'bookingId':
@@ -421,7 +425,6 @@
             displayBookings(filteredBookings);
         }
 
-        // Direct search by slot using backend endpoint with robust error handling
         function searchBookingBySlot(slotId) {
             const info = document.getElementById('booking-info');
             const token = getAuthToken();
@@ -466,7 +469,6 @@
             document.getElementById('successModal').style.display = 'none';
         }
 
-        // Close modal when clicking outside
         window.onclick = function (event) {
             const modal = document.getElementById('successModal');
             if (event.target === modal) {
@@ -474,30 +476,20 @@
             }
         }
 
-        // Update cost every minute
         setInterval(() => {
             if (selectedBooking) {
                 calculateAndDisplayCost();
             }
         }, 60000);
 
-        // Debug function to help troubleshoot
         function debugCheckout() {
             console.log('=== CHECKOUT DEBUG INFO ===');
             console.log('Selected booking:', selectedBooking);
             console.log('Active bookings:', activeBookings);
             console.log('Payment method:', document.getElementById('paymentMethod').value);
-
-            if (selectedBooking) {
-                console.log('Selected booking status:', selectedBooking.status);
-                console.log('Selected booking check-in time:', selectedBooking.checkInTime);
-                console.log('Selected booking slot:', selectedBooking.slot);
-                console.log('Selected booking vehicle:', selectedBooking.vehicle);
-            }
             console.log('========================');
         }
 
-        // Make debug function available globally
         window.debugCheckout = debugCheckout;
     </script>
 </body>

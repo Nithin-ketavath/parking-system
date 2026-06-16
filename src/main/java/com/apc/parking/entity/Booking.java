@@ -49,6 +49,8 @@ public class Booking {
     private LocalDateTime checkOutTime;
     private Double totalCost;
 
+    @Column(name = "vehicle_type")
+    private String vehicleType;
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private BookingStatus status = BookingStatus.BOOKED;
@@ -80,6 +82,14 @@ public class Booking {
 
     public User getUser() {
         return user;
+    }
+
+    public String getVehicleType() {
+        return vehicleType;
+    }
+
+    public void setVehicleType(String vehicleType) {
+        this.vehicleType = vehicleType;
     }
 
     public void setUser(User user) {
